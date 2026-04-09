@@ -4,6 +4,8 @@ Scope:
 - Merchant Dashboard
 - Merchant Invoices
 - Merchant Customer Fraud
+- Merchant Payout Settings
+- Merchant Profile Settings & Security
 
 Source aligned with your current collection and backend controllers/services.
 
@@ -13,6 +15,8 @@ Source aligned with your current collection and backend controllers/services.
 - Pagination is used heavily with page and limit.
 - Invoices support multiple filters (status, date range, sorting, search).
 - Customer Fraud supports both customer_id and phone based flows.
+- Payout Settings supports BANK_ACCOUNT, BKASH, NAGAD, CASH with verification/default workflow.
+- Merchant profile settings include business/contact updates, document upload links, and password change.
 
 ## Authentication
 Header:
@@ -854,9 +858,570 @@ Common errors:
 
 ============================================================
 
+# 4) Merchant Payout Settings APIs
+
+## 4.1 Available Payment Methods
+GET /merchants/my/payout-methods/available
+
+Short summary:
+- Returns only method types not yet added by this merchant.
+
+Query filters:
+- None
+
+Request body:
+- None
+
+Success response example:
+```json
+{
+  "success": true,
+  "data": {
+    "available_methods": ["BANK_ACCOUNT", "BKASH", "NAGAD", "CASH"]
+  },
+  "message": "Available payout methods retrieved successfully"
+}
+```
+
+------------------------------------------------------------
+
+## 4.2 Current Payout Options
+GET /merchants/my/payout-methods
+
+Short summary:
+- Returns all added payout methods, ordered with default method first.
+
+Query filters:
+- None
+
+Request body:
+- None
+
+Success response example:
+```json
+{
+  "success": true,
+  "data": {
+    "current_methods": [
+      {
+        "id": "41fe2012-bfd5-4591-a51f-f4a5a11bb1c0",
+        "merchant_id": "df32ef2e-96fe-4a1d-8723-78372129a05e",
+        "method_type": "BANK_ACCOUNT",
+        "status": "VERIFIED",
+        "is_default": true,
+        "bank_name": "Dutch Bangla Bank",
+        "branch_name": "Dhaka Main Branch",
+        "account_holder_name": "John Doe",
+        "account_number": "1234567890",
+        "routing_number": "090123456",
+        "verified_at": "2026-04-01T10:00:00.000Z",
+        "created_at": "2026-03-25T09:00:00.000Z",
+        "updated_at": "2026-04-01T10:00:00.000Z"
+      }
+    ]
+  },
+  "message": "Payout methods retrieved successfully"
+}
+```
+
+------------------------------------------------------------
+
+## 4.3 Add Payout Method
+POST /merchants/my/payout-methods
+
+Short summary:
+- Adds one payout method. Only one method per method_type is allowed per merchant.
+
+Method types:
+- BANK_ACCOUNT
+- BKASH
+- NAGAD
+- CASH
+
+Body variants:
+
+Variant A (Bank Account):
+```json
+{
+  "method_type": "BANK_ACCOUNT",
+  "bank_name": "Dutch Bangla Bank",
+  "branch_name": "Dhaka Main Branch",
+  "account_holder_name": "John Doe",
+  "account_number": "1234567890",
+  "routing_number": "090123456"
+}
+```
+
+Variant B (bKash):
+```json
+{
+  "method_type": "BKASH",
+  "bkash_number": "01712345678",
+  "bkash_account_holder_name": "John Doe",
+  "bkash_account_type": "PERSONAL"
+}
+```
+
+Variant C (Nagad):
+```json
+{
+  "method_type": "NAGAD",
+  "nagad_number": "01812345678",
+  "nagad_account_holder_name": "John Doe",
+  "nagad_account_type": "PERSONAL"
+}
+```
+
+Variant D (Cash):
+```json
+{
+  "method_type": "CASH"
+}
+```
+
+Validation rules:
+- BKASH and NAGAD numbers must match 01[3-9]XXXXXXXX format.
+- BANK_ACCOUNT requires all bank_* and account_* fields.
+- BKASH account type: PERSONAL | MERCHANT | AGENT.
+- NAGAD account type: PERSONAL | MERCHANT.
+
+Success response example:
+```json
+{
+  "success": true,
+  "data": {
+    "method": {
+      "id": "41fe2012-bfd5-4591-a51f-f4a5a11bb1c0",
+      "method_type": "BKASH",
+      "status": "PENDING",
+      "is_default": false,
+      "bkash_number": "01712345678"
+    }
+  },
+  "message": "Payout method added successfully"
+}
+```
+
+Common errors:
+- 409 when same method_type already exists for merchant
+- 400 validation errors for missing required fields
+
+------------------------------------------------------------
+
+## 4.4 Update Payout Method
+PATCH /merchants/my/payout-methods/:id
+
+Short summary:
+- Updates an existing payout method using partial fields.
+
+Path param:
+- id: payout method UUID
+
+Body:
+- Partial update of add fields. Example:
+```json
+{
+  "branch_name": "Gulshan Branch",
+  "account_holder_name": "John A. Doe"
+}
+```
+
+Success response example:
+```json
+{
+  "success": true,
+  "data": {
+    "method": {
+      "id": "41fe2012-bfd5-4591-a51f-f4a5a11bb1c0",
+      "method_type": "BANK_ACCOUNT",
+      "status": "VERIFIED",
+      "is_default": true,
+      "branch_name": "Gulshan Branch"
+    }
+  },
+  "message": "Payout method updated successfully"
+}
+```
+
+Common errors:
+- 404 payout method not found
+
+------------------------------------------------------------
+
+## 4.5 Set Default Payment Method
+PATCH /merchants/my/payout-methods/:id/set-default
+
+Short summary:
+- Sets a verified method as merchant default payout method.
+
+Path param:
+- id: payout method UUID
+
+Request body:
+- None
+
+Success response example:
+```json
+{
+  "success": true,
+  "data": {
+    "method": {
+      "id": "41fe2012-bfd5-4591-a51f-f4a5a11bb1c0",
+      "method_type": "BANK_ACCOUNT",
+      "status": "VERIFIED",
+      "is_default": true
+    }
+  },
+  "message": "Default payout method set successfully"
+}
+```
+
+Common errors:
+- 400 only verified methods can be set as default
+- 404 payout method not found
+
+Important collection mismatch:
+- Postman item currently uses POST for this action.
+- Backend route is PATCH and should be used by frontend.
+
+------------------------------------------------------------
+
+## 4.6 Delete Method
+DELETE /merchants/my/payout-methods/:id
+
+Short summary:
+- Deletes a payout method owned by merchant.
+
+Path param:
+- id: payout method UUID
+
+Request body:
+- None
+
+Success response example:
+```json
+{
+  "success": true,
+  "message": "Payout method deleted successfully"
+}
+```
+
+Common errors:
+- 404 payout method not found
+
+Important collection mismatch:
+- Postman URL currently shows :d.
+- Backend route uses :id.
+
+------------------------------------------------------------
+
+## 4.7 Get My Payout Transactions
+GET /merchants/my/payout-transactions
+
+Short summary:
+- Returns paginated payout transaction history for merchant.
+
+Query filters:
+- page: number (default 1)
+- limit: number (default 10)
+
+Request body:
+- None
+
+Transaction status values:
+- PENDING
+- PROCESSING
+- COMPLETED
+- FAILED
+- CANCELLED
+
+Success response example:
+```json
+{
+  "success": true,
+  "data": {
+    "transactions": [
+      {
+        "id": "5ff99618-ebac-45b9-9d9b-1458d62f53d9",
+        "merchant_id": "df32ef2e-96fe-4a1d-8723-78372129a05e",
+        "payout_method_id": "41fe2012-bfd5-4591-a51f-f4a5a11bb1c0",
+        "amount": 111750,
+        "reference_number": "PAYOUT-20260409-001",
+        "status": "COMPLETED",
+        "admin_notes": "Paid via bank transfer",
+        "initiated_at": "2026-04-09T08:00:00.000Z",
+        "processed_at": "2026-04-09T08:05:00.000Z",
+        "completed_at": "2026-04-09T08:10:00.000Z",
+        "created_at": "2026-04-09T08:00:00.000Z",
+        "updated_at": "2026-04-09T08:10:00.000Z"
+      }
+    ],
+    "pagination": {
+      "total": 24,
+      "page": 1,
+      "limit": 10,
+      "totalPages": 3
+    }
+  },
+  "message": "Payout transactions retrieved successfully"
+}
+```
+
+============================================================
+
+# 5) Merchant Profile Settings & Security APIs
+
+## 5.1 Get Merchant Settings (Profile + Documents)
+GET /merchants/settings
+
+Short summary:
+- Returns merchant profile settings and uploaded document status data.
+
+Query filters:
+- None
+
+Request body:
+- None
+
+Success response example:
+```json
+{
+  "profile_img_url": "https://cdn.example.com/merchants/logo/merchant-profile.jpg",
+  "business_name": "My Electronics Store",
+  "contact_person_name": "John Doe",
+  "contact_number": "+8801712345678",
+  "contact_email": "merchant@example.com",
+  "optional_phone_number": "+8801812345678",
+  "documents": {
+    "nid": {
+      "number": "10045798798",
+      "front": "https://cdn.example.com/merchants/nid/front.jpg",
+      "back": "https://cdn.example.com/merchants/nid/back.jpg",
+      "verified": false
+    },
+    "trade_license": {
+      "number": "TL-10045798798",
+      "url": "https://cdn.example.com/merchants/trade-license/trade-license.jpg",
+      "verified": false
+    },
+    "tin": {
+      "number": "123456",
+      "url": "https://cdn.example.com/merchants/tin/tin.jpg",
+      "verified": false
+    },
+    "bin": {
+      "number": "123456",
+      "url": "https://cdn.example.com/merchants/bin/bin.jpg",
+      "verified": false
+    }
+  }
+}
+```
+
+------------------------------------------------------------
+
+## 5.2 Update Merchant Profile Details
+PATCH /merchants/profile-details
+
+Short summary:
+- Merchant can update business name, contact person, contact email, phone, optional phone, and profile photo URL.
+
+Request body (all optional):
+```json
+{
+  "business_name": "My Electronics Store",
+  "contact_person_name": "John Doe",
+  "contact_email": "merchant@example.com",
+  "contact_number": "+8801712345678",
+  "optional_phone_number": "+8801812345678",
+  "profile_img_url": "https://cdn.example.com/merchants/logo/merchant-profile.jpg"
+}
+```
+
+Alias support:
+- secondary_number can be sent instead of optional_phone_number.
+
+Validation:
+- contact_number and optional_phone_number accept Bangladesh format: 01XXXXXXXXX or +8801XXXXXXXXX.
+- contact_email must be valid email.
+- If both optional_phone_number and secondary_number are sent, both values must be same.
+
+Success response example:
+```json
+{
+  "success": true,
+  "message": "Profile details updated"
+}
+```
+
+Common errors:
+- 409 phone already registered
+- 409 email already registered
+
+------------------------------------------------------------
+
+## 5.3 Update NID Document (Required)
+PATCH /merchants/documents/nid
+
+Short summary:
+- Upload NID data with required number, front image/pdf URL, and back image/pdf URL.
+
+Request body:
+```json
+{
+  "nid_number": "10045798798",
+  "nid_front_url": "https://cdn.example.com/merchants/nid/front.jpg",
+  "nid_back_url": "https://cdn.example.com/merchants/nid/back.jpg"
+}
+```
+
+Success response:
+- Returns updated merchant profile entity.
+
+------------------------------------------------------------
+
+## 5.4 Update Trade License (Required)
+PATCH /merchants/documents/trade-license
+
+Short summary:
+- Upload trade license number and front document URL.
+
+Request body:
+```json
+{
+  "trade_license_number": "10045798798",
+  "trade_license_url": "https://cdn.example.com/merchants/trade-license/front.jpg"
+}
+```
+
+Success response:
+- Returns updated merchant profile entity.
+
+------------------------------------------------------------
+
+## 5.5 Update TIN (Optional)
+PATCH /merchants/documents/tin
+
+Short summary:
+- Upload TIN number and document URL when merchant has TIN.
+
+Request body:
+```json
+{
+  "tin_number": "123456",
+  "tin_certificate_url": "https://cdn.example.com/merchants/tin/front.jpg"
+}
+```
+
+Success response:
+- Returns updated merchant profile entity.
+
+------------------------------------------------------------
+
+## 5.6 Update BIN (Optional)
+PATCH /merchants/documents/bin
+
+Short summary:
+- Upload BIN number and document URL when merchant has BIN.
+
+Request body:
+```json
+{
+  "bin_number": "123456",
+  "bin_certificate_url": "https://cdn.example.com/merchants/bin/front.jpg"
+}
+```
+
+Success response:
+- Returns updated merchant profile entity.
+
+------------------------------------------------------------
+
+## 5.7 Change Merchant Password
+PATCH /merchants/profile/password
+
+Short summary:
+- Merchant changes password using current_password, new_password, confirm_new_password.
+
+Request body:
+```json
+{
+  "current_password": "CurrentPassword@123",
+  "new_password": "NewPassword@123",
+  "confirm_new_password": "NewPassword@123"
+}
+```
+
+Validation:
+- new_password min length is 8.
+- new_password must match confirm_new_password.
+- new_password must be different from current_password.
+
+Success response:
+```json
+{
+  "success": true,
+  "message": "Password updated successfully"
+}
+```
+
+Common errors:
+- 401 current password is incorrect
+- 400 password mismatch or invalid new password
+
+------------------------------------------------------------
+
+## 5.8 File Upload Flow (Profile Photo + Documents)
+
+Step 1: Get signed upload URL
+- POST /upload/signed-url
+
+Body example:
+```json
+{
+  "fileName": "merchant-nid-front.jpg",
+  "fileType": "image/jpeg",
+  "module": "merchants/nid"
+}
+```
+
+Supported module values for merchant settings:
+- merchants/logo
+- merchants/nid
+- merchants/trade-license
+- merchants/tin
+- merchants/bin
+
+Step 2:
+- Upload file using returned signedUrl (PUT to S3).
+
+Step 3:
+- Save returned readUrl in profile/document endpoint body fields.
+
+Upload response example:
+```json
+{
+  "success": true,
+  "message": "Signed URL generated successfully",
+  "signedUrl": "https://...",
+  "fileKey": "merchants/nid/uuid-timestamp.jpg",
+  "readUrl": "https://..."
+}
+```
+
+Frontend file validation rules (UI level):
+- NID and document files: PNG, JPEG, PDF
+- Max size: 2MB per file
+
+============================================================
+
 # Final Frontend Notes
 - Use merchant token only for these endpoints.
 - Keep snake_case query keys where shown (from_date, to_date, sort_by).
 - For invoice-details endpoint, use invoice_id in query only when you want a single invoice detail view; otherwise omit it for all order rows.
 - For lifetime summary, send both startDate and endDate together, or send neither.
 - For Customer Fraud removal, do not send action/admin_note body; path param is enough.
+- For payout set-default, frontend must call PATCH /merchants/my/payout-methods/:id/set-default.
+- CASH payout method is auto-verified in backend and can become default immediately if no default exists.
+- Merchant profile endpoints for settings/documents are under /merchants/settings, /merchants/profile-details, and /merchants/documents/*.
+- Merchant password change endpoint is /merchants/profile/password with current/new/confirm fields.
